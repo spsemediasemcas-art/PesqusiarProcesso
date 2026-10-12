@@ -13,6 +13,7 @@ Uso na linha de comando (teste):
     python buscar_link_processo.py 25101.006859/2026 [SEMCAS]
 """
 
+import os
 import sys
 import time
 import urllib.parse
@@ -59,6 +60,28 @@ def _salvar_captcha_rotulado(img_bytes, codigo):
     except Exception as e:
         print(f"[aprendizado] falha ao salvar rótulo: {e}")
         return None
+
+
+def _proxy_config():
+    """Proxy residencial opcional via variável de ambiente PROXY_URL.
+
+    Formato: http://usuario:senha@host:porta
+    Sem a variável (uso local, IP doméstico), devolve None — conexão direta.
+    Em datacenter (Railway/VPS), o Cloudflare barra o IP; com o proxy a
+    saída passa por um IP residencial e o desafio não aparece.
+    """
+    url = os.environ.get("PROXY_URL", "").strip()
+    if not url:
+        return None
+    parsed = urllib.parse.urlparse(url)
+    if not parsed.hostname:
+        return None
+    cfg = {"server": f"{parsed.scheme or 'http'}://{parsed.hostname}:{parsed.port or 8080}"}
+    if parsed.username:
+        cfg["username"] = urllib.parse.unquote(parsed.username)
+    if parsed.password:
+        cfg["password"] = urllib.parse.unquote(parsed.password)
+    return cfg
 
 
 def _carregar_reconhecedor():
@@ -173,7 +196,11 @@ def buscar_link(processo, orgao="SEMCAS", oculto=True,
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=False, args=args_lancamento)
-        context = browser.new_context(viewport={"width": 1366, "height": 800})
+        proxy = _proxy_config()
+        if proxy:
+            log(f"usando proxy: {proxy['server']}")
+        context = browser.new_context(viewport={"width": 1366, "height": 800},
+                                      proxy=proxy)
         page = context.new_page()
         try:
             _preparar_formulario(page, processo, orgao)

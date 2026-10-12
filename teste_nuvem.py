@@ -26,7 +26,7 @@ PASTA = Path(__file__).resolve().parent
 sys.path.insert(0, str(PASTA))
 
 from buscar_link_processo import (  # noqa: E402
-    URL_PESQUISA, _carregar_reconhecedor, buscar_link,
+    URL_PESQUISA, _carregar_reconhecedor, _proxy_config, buscar_link,
 )
 from playwright.sync_api import sync_playwright  # noqa: E402
 
@@ -53,9 +53,13 @@ def ip_passa_cloudflare():
         browser = p.chromium.launch(headless=False, args=[
             "--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"])
         print("[teste] Chromium no ar, abrindo página...", flush=True)
+        proxy = _proxy_config()
+        if proxy:
+            print(f"[teste] saindo via proxy: {proxy['server']}", flush=True)
         try:
             page = browser.new_context(
-                viewport={"width": 1366, "height": 800}).new_page()
+                viewport={"width": 1366, "height": 800},
+                proxy=proxy).new_page()
             page.goto(URL_PESQUISA, wait_until="domcontentloaded")
 
             # espera curta pelo formulário; se não vier, segue para o
