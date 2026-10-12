@@ -5,12 +5,17 @@ Teste de conectividade para rodar na nuvem (Railway, VPS, etc.).
 
 Responde UMA pergunta: o Cloudflare do SEI bloqueia este IP de datacenter?
 
+Etapa 1: abre a página de pesquisa e verifica se veio bloqueio.
+Etapa 2 (bônus): roda uma busca completa com o fluxo de produção
+         (buscar_link + SVM treinado nos rótulos).
+
 Uso:
     python teste_nuvem.py [numero_processo]
 
 Saída (procure a linha VEREDITO):
-    VEREDITO: PASSOU  - o IP desta máquina consegue buscar no SEI
+    VEREDITO: PASSOU    - o IP passa e a busca funciona
     VEREDITO: BLOQUEADO - Cloudflare barrou este IP (precisa proxy residencial)
+    VEREDITO: IP PASSOU - passa, mas o captcha não resolveu (não bloqueia o deploy)
 """
 
 import sys
@@ -20,8 +25,7 @@ PASTA = Path(__file__).resolve().parent
 sys.path.insert(0, str(PASTA))
 
 from buscar_link_processo import (  # noqa: E402
-    URL_PESQUISA, LINKS_PROCESSO, _carregar_reconhecedor, _resolver_captcha,
-    _preparar_formulario,
+    URL_PESQUISA, _carregar_reconhecedor, buscar_link,
 )
 from playwright.sync_api import sync_playwright  # noqa: E402
 
@@ -36,22 +40,14 @@ def veredito(texto, ok):
     sys.exit(0 if ok else 1)
 
 
-def main():
-    modelo, templates = _carregar_reconhecedor()
-    print(f"[teste] reconhecedor: {'SVM' if modelo is not None else 'templates'}")
-    print(f"[teste] processo de teste: {PROCESSO_TESTE}")
-
+def ip_passa_cloudflare():
+    """Etapa 1: só verifica se a página carrega sem bloqueio."""
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False)
+        browser = p.chromium.launch(headless=False, args=["--no-sandbox"])
         try:
             page = browser.new_context(
                 viewport={"width": 1366, "height": 800}).new_page()
-            try:
-                page.goto(URL_PESQUISA, wait_until="networkidle")
-            except Exception as e:
-                print(f"[teste] erro ao abrir a página: {e}")
-                veredito(f"FALHA DE REDE - {e}", False)
-
+            page.goto(URL_PESQUISA, wait_until="networkidle")
             titulo = page.title()
             corpo = (page.locator("body").inner_text() or "")[:400]
             print(f"[teste] título da página: {titulo[:80]!r}")
@@ -60,51 +56,47 @@ def main():
                     or "blocked" in corpo.lower()
                     or "attention required" in titulo.lower()):
                 print(f"[teste] corpo: {corpo[:200]!r}")
-                veredito("BLOQUEADO - Cloudflare barrou este IP "
-                         "(precisa proxy residencial)", False)
+                return "bloqueado"
 
             if page.locator("#txtProtocoloPesquisa").count() == 0:
                 print(f"[teste] corpo inesperado: {corpo[:200]!r}")
-                veredito("PÁGINA ESTRANHA - nem bloqueio nem formulário "
-                         "(link expirado?)", False)
+                return "estranho"
 
-            print("[teste] formulário carregou - IP passou pelo Cloudflare!")
-
-            # O que interessa neste teste é o IP. O captcha entra como
-            # bônus: até 4 tentativas, pois uma leitura fraca (conf < 0.4)
-            # pode errar e o SEI recusa em silêncio.
-            _preparar_formulario(page, PROCESSO_TESTE, ORGAO)
-            captcha_ok = False
-            for tent in range(1, 5):
-                captcha_el = page.locator("#imgCaptcha, #imgInfraCaptcha")
-                if captcha_el.count() == 0:
-                    break
-                result = _resolver_captcha(
-                    captcha_el.first.screenshot(), modelo, templates)
-                print(f"[teste] tentativa {tent}: leu {result['codigo']!r} "
-                      f"(conf {result['confianca']:.2f})")
-                page.fill("#txtInfraCaptcha", result["codigo"][:6])
-                page.click("#sbmPesquisar")
-                page.wait_for_timeout(5000)
-                if page.locator(LINKS_PROCESSO).count() > 0:
-                    captcha_ok = True
-                    break
-                # SEI recusou: gera captcha novo e tenta de novo
-                _preparar_formulario(page, PROCESSO_TESTE, ORGAO)
-                page.wait_for_timeout(1000)
-
-            if captcha_ok:
-                veredito("PASSOU - o IP desta máquina consegue buscar no SEI "
-                         "(captcha resolvido e processo encontrado)", True)
-            veredito("IP PASSOU (formulário carregou sem bloqueio), mas o "
-                     "captcha não foi resolvido em 4 tentativas — prove seu "
-                     "máquina, o SVM precisa de mais rótulos; para o deploy "
-                     "isso não bloqueia", True)
+            return "ok"
         finally:
             try:
                 browser.close()
             except Exception:
                 pass
+
+
+def main():
+    modelo, templates = _carregar_reconhecedor()
+    print(f"[teste] reconhecedor: {'SVM' if modelo is not None else 'templates'}")
+    print(f"[teste] processo de teste: {PROCESSO_TESTE}")
+
+    resultado = ip_passa_cloudflare()
+    if resultado == "bloqueado":
+        veredito("BLOQUEADO - Cloudflare barrou este IP "
+                 "(precisa proxy residencial)", False)
+    if resultado == "estranho":
+        veredito("PÁGINA ESTRANHA - nem bloqueio nem formulário "
+                 "(link expirado?)", False)
+
+    print("[teste] formulário carregou - IP passou pelo Cloudflare!")
+
+    # Etapa 2 (bônus): busca completa pelo fluxo de produção, que recarrega
+    # o captcha pelo botão do SEI a cada erro.
+    print("[teste] rodando busca completa com o fluxo de produção...")
+    url = buscar_link(PROCESSO_TESTE, orgao=ORGAO, oculto=True,
+                      max_tentativas=4,
+                      ao_progresso=lambda m: print(f"[teste] {m}"))
+    if url:
+        veredito("PASSOU - o IP desta máquina consegue buscar no SEI "
+                 "(captcha resolvido e processo encontrado)", True)
+    veredito("IP PASSOU (formulário carregou sem bloqueio), mas o captcha "
+             "não foi resolvido em 4 tentativas — a leitura do SVM errou; "
+             "para o deploy isso não bloqueia", True)
 
 
 if __name__ == "__main__":

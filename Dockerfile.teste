@@ -18,4 +18,4 @@ COPY rotulos.txt ./rotulos.txt
 RUN python -c "from sei_captcha_pipeline import treinar_modelo; treinar_modelo()"
 
 # o teste roda e o container sai (é one-shot, não fica em loop)
-CMD ["xvfb-run", "-a", "--server-args=-screen 0 1366x800x24", "python", "teste_nuvem.py"]
+CMD ["sh", "-c", "echo '[teste] container iniciado, versao python:' && python -V && exec xvfb-run -a --server-args=-screen\\ 0\\ 1366x800x24 python -u teste_nuvem.py"]

@@ -156,10 +156,12 @@ def buscar_link(processo, orgao="SEMCAS", oculto=True,
             _preparar_formulario(page, processo, orgao)
         time.sleep(1.2)
 
-    args_lancamento = (
-        ["--window-position=-4000,-4000", "--window-size=1200,800"]
-        if oculto else []
-    )
+    args_lancamento = [
+        # --no-sandbox: obrigatório para Chromium como root no container Linux
+        "--no-sandbox",
+    ]
+    if oculto:
+        args_lancamento += ["--window-position=-4000,-4000", "--window-size=1200,800"]
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=False, args=args_lancamento)
