@@ -1,0 +1,7 @@
+numpy
+opencv-python
+playwright==1.63.0
+scikit-learn
+pillow
+supabase
+python-dotenv

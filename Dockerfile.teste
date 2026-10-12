@@ -1,0 +1,21 @@
+# Dockerfile de TESTE — sobe, faz UMA busca no SEI, imprime o veredito e sai.
+# Serve para responder: o IP do Railway passa pelo Cloudflare?
+# Build e logs: no painel do Railway, aba "Deployments" -> "View Logs".
+FROM mcr.microsoft.com/playwright/python:v1.63.0-noble
+
+RUN apt-get update && apt-get install -y --no-install-recommends xvfb \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY sei_captcha_pipeline.py buscar_link_processo.py teste_nuvem.py ./
+COPY captchas ./captchas
+COPY rotulos.txt ./rotulos.txt
+
+RUN python -c "from sei_captcha_pipeline import treinar_modelo; treinar_modelo()"
+
+# o teste roda e o container sai (é one-shot, não fica em loop)
+CMD ["xvfb-run", "-a", "--server-args=-screen 0 1366x800x24", "python", "teste_nuvem.py"]

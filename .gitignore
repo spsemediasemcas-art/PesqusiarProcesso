@@ -1,0 +1,22 @@
+# treino / dados gerados
+__pycache__/
+*.pyc
+modelo_svm.pkl
+
+# estado local (não sobe pro git)
+sei_monitor.db
+resultado_*.png
+captcha_atual.png
+captcha_solucao.txt
+resultado_*.html
+resultado_*.txt
+temp_captcha.png
+
+# documentos baixados e lixos de debug
+documentos/
+debug_fase1/
+falhas/
+Screenshot *.png
+
+# ambiente local
+.env
