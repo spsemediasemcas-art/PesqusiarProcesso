@@ -8,6 +8,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends xvfb \
 
 WORKDIR /app
 
+# logs aparecem em tempo real nos Deploy Logs do Railway
+ENV PYTHONUNBUFFERED=1
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 

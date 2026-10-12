@@ -75,9 +75,13 @@ def ip_passa_cloudflare():
 
 
 def main():
+    import time
+    t0 = time.time()
+    print(f"[teste] importando dependências (cv2/sklearn/pkl 52MB)...", flush=True)
     modelo, templates = _carregar_reconhecedor()
-    print(f"[teste] reconhecedor: {'SVM' if modelo is not None else 'templates'}")
-    print(f"[teste] processo de teste: {PROCESSO_TESTE}")
+    print(f"[teste] dependências prontas em {time.time() - t0:.0f}s", flush=True)
+    print(f"[teste] reconhecedor: {'SVM' if modelo is not None else 'templates'}", flush=True)
+    print(f"[teste] processo de teste: {PROCESSO_TESTE}", flush=True)
 
     resultado = ip_passa_cloudflare()
     if resultado == "bloqueado":
