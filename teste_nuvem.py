@@ -43,11 +43,15 @@ def veredito(texto, ok):
 def ip_passa_cloudflare():
     """Etapa 1: só verifica se a página carrega sem bloqueio."""
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False, args=["--no-sandbox"])
+        print("[teste] lançando Chromium...", flush=True)
+        browser = p.chromium.launch(headless=False, args=[
+            "--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"])
+        print("[teste] Chromium no ar, abrindo página...", flush=True)
         try:
             page = browser.new_context(
                 viewport={"width": 1366, "height": 800}).new_page()
-            page.goto(URL_PESQUISA, wait_until="networkidle")
+            page.goto(URL_PESQUISA, wait_until="domcontentloaded")
+            page.wait_for_selector("#txtProtocoloPesquisa", timeout=45000)
             titulo = page.title()
             corpo = (page.locator("body").inner_text() or "")[:400]
             print(f"[teste] título da página: {titulo[:80]!r}")

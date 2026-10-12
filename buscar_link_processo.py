@@ -75,7 +75,10 @@ def _carregar_reconhecedor():
 
 
 def _preparar_formulario(page, processo, orgao):
-    page.goto(URL_PESQUISA, wait_until="networkidle")
+    page.goto(URL_PESQUISA, wait_until="domcontentloaded")
+    # espera o campo existir em vez de networkidle (página do SEI tem
+    # conexões que ficam abertas e o networkidle pode nunca disparar)
+    page.wait_for_selector("#txtProtocoloPesquisa", timeout=45000)
     page.fill("#txtProtocoloPesquisa", processo)
     chk = page.locator("#chkSinProcessos")
     if chk.count() > 0 and not chk.is_checked():
@@ -152,13 +155,18 @@ def buscar_link(processo, orgao="SEMCAS", oculto=True,
         try:
             page.click("#infraImgRecarregarCaptcha", timeout=3000)
         except Exception:
-            page.reload(wait_until="networkidle")
+            page.reload(wait_until="domcontentloaded")
+            page.wait_for_selector("#txtProtocoloPesquisa", timeout=45000)
             _preparar_formulario(page, processo, orgao)
-        time.sleep(1.2)
+            time.sleep(1.2)
 
     args_lancamento = [
         # --no-sandbox: obrigatório para Chromium como root no container Linux
         "--no-sandbox",
+        # --disable-dev-shm-usage: o /dev/shm do Docker é minúsculo (64MB) e
+        # faz o Chromium travar sem erro — usar disco no lugar.
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
     ]
     if oculto:
         args_lancamento += ["--window-position=-4000,-4000", "--window-size=1200,800"]
@@ -174,7 +182,8 @@ def buscar_link(processo, orgao="SEMCAS", oculto=True,
                 captcha_el = page.locator("#imgCaptcha, #imgInfraCaptcha")
                 if captcha_el.count() == 0:
                     log("captcha não encontrado, recarregando página")
-                    page.reload(wait_until="networkidle")
+                    page.reload(wait_until="domcontentloaded")
+                    page.wait_for_selector("#txtProtocoloPesquisa", timeout=45000)
                     _preparar_formulario(page, processo, orgao)
                     continue
 
